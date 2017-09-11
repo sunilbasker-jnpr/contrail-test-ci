@@ -123,13 +123,6 @@ class TestwithHeat (Tests):
        super(TestwithHeat, cls).setUpClass()
        cls.testmode = 'heat'
 
-class TestwithVnc (Tests):
-
-   @classmethod
-   def setUpClass (cls):
-       super(TestwithVnc, cls).setUpClass()
-       cls.testmode = 'vnc'
-
 class TestwithOrch (Tests):
 
    @classmethod

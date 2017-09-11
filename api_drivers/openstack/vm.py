@@ -13,6 +13,7 @@ try:
 
         def create_virtual_machine (self, **kwargs):
             assert kwargs['type'] == 'openstack', "Unsupport argument type"
+            args = kwargs
             #args = copy.deepcopy(kwargs)
             del args['type']
             lst = []
@@ -67,9 +68,8 @@ class VmDetails():
             try:
                 vm_obj.get()
             except TimeoutError, e:
-                #self.logger.error('Timed out while getting VM %s detail' % (
-                #    vm_obj.name))
-                return False
+                raise Exception('Timed out while getting VM %s detail' % (
+                    vm_obj.name))
     # end get_vm_obj
 
     @retry(delay=1, tries=10)
