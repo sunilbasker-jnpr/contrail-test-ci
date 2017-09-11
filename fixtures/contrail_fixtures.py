@@ -99,8 +99,9 @@ class ContrailFixture (fixtures.Fixture):
        else:
            return params
 
-   def _update_args (self, params):
-       self._args.update(params) #TODO: delete all entries set to None/[]/{}
+   def update_args (self, params):
+       #TODO: delete all entries set to None/[]/{}
+       self._args.update(self._handle_args(copy.deepcopy(params)))
 
    @property
    def vnc_obj (self):
@@ -159,7 +160,7 @@ class ContrailFixture (fixtures.Fixture):
        if not params:
            self._read()
        else:
-           self._update_args(self._handle_args(params))
+           self.update_args(params)
            self._update()
            if self._vnc_obj:
                self._read()
