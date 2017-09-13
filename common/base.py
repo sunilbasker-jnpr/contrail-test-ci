@@ -3,7 +3,8 @@ from netaddr import *
 from vnc_api.vnc_api import *
 #from vn_test import VNFixture
 from vn_fixture import VNFixture
-from vm_test import VMFixture
+#from vm_test import VMFixture
+from vm_fixture import VMFixture
 from policy_test import PolicyFixture
 from port_fixture import PortFixture
 from interface_route_table_fixture import InterfaceRouteTableFixture
@@ -126,6 +127,7 @@ class GenericTestBase(test_v1.BaseTestCase_v1, _GenericTestBaseMethods):
                     flavor=flavor,
                     node_name=node_name,
                     port_ids=port_ids,
+                    vn_fixtures=[vn_fixture],
                     **kwargs)
         vm_obj.setUp()
         return vm_obj
@@ -253,9 +255,9 @@ class GenericTestBase(test_v1.BaseTestCase_v1, _GenericTestBaseMethods):
         return True
     #end config_aap
 
-    def allow_all_traffic_between_vns(self, vn1_fixture, vn2_fixture):
+    def setup_policy_between_vns(self, vn1_fixture, vn2_fixture, rules=[]):
         policy_name = get_random_name('policy-allow-all')
-        rules = [
+        rules = rules or [
             {
                 'direction': '<>', 'simple_action': 'pass',
                 'protocol': 'any',
@@ -276,8 +278,9 @@ class GenericTestBase(test_v1.BaseTestCase_v1, _GenericTestBaseMethods):
         vn2_fixture.bind_policies(
             [policy_fixture.policy_fq_name], vn2_fixture.uuid)
         self.addCleanup(vn2_fixture.unbind_policies,
-                        vn2_fixture.uuid, [policy_fixture.policy_fq_name])
-    # end allow_all_traffic_between_vns
+                        vn2_fixture.vn_id, [policy_fixture.policy_fq_name])
+        return policy_fixture
+    # end setup_policy_between_vns
 
     def create_dhcp_server_vm(self,
                               vn1_fixture,
