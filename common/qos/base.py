@@ -4,7 +4,7 @@ from tcutils.util import is_almost_same
 
 from common.neutron.base import BaseNeutronTest
 from compute_node_test import ComputeNodeFixture
-from qos_fixture import QosForwardingClassFixture, QosConfigFixture, QosQueueFixture
+from qos_fixture_new import QosForwardingClassFixture, QosConfigFixture, QosQueueFixture
 from collections import OrderedDict
 
 from tcutils.traffic_utils.traffic_analyzer import TrafficAnalyzer
