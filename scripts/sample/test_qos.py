@@ -3,7 +3,7 @@ from tcutils.wrappers import preposttest_wrapper
 from tcutils.util import get_random_name, get_random_cidr, get_random_cidrs
 from common import resource_handler
 from common.base import GenericTestBase
-from common.qos.new_base import QosTestBase
+from common.qos.base import QosTestBase
 
 tmpl = {
    'heat_template_version': '2015-04-30',
