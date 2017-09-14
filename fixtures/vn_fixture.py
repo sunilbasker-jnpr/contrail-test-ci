@@ -102,6 +102,10 @@ class VNFixture_v2 (ContrailFixture):
    def vrf_name (self):
        return self.ri_name
 
+   @property
+   def subnets(self):
+       return self._subnets
+
    def verify_on_setup (self):
        self.assert_on_setup(*self._verify_in_api_server())
        self.assert_on_setup(*self._verify_in_control_nodes())

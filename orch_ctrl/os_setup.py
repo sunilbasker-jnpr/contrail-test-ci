@@ -116,12 +116,19 @@ class OpenstackControl (object):
             cls.set_zones_and_hosts(self.zones, self.hosts)
         self._select_lb = cls
 
-    def get_zones (self):
+    def get_zones (self, host=None):
+        if host:
+            zones = []
+            for zone, hosts in self.zones.iteritems():
+                if host in hosts['hosts']:
+                    zones.append(zone)
+            return zones
+
         return list(self.zones.keys())
 
     def get_hosts (self, zone=None):
         if zone:
-            return list(self.zones[zone].keys())
+            return self.zones[zone]['hosts']
         else:
             return list(self.hosts)
 
@@ -196,7 +203,7 @@ class OpenstackControl (object):
             zone = availability_zone.split(':')
             assert len(zone) <= 2, \
                 'availability_zone must be specified as "zone:host" or "zone"'
-            zone, host = zone if len(zone) == 2 else zone, None
+            zone, host = zone[0], zone[1] if len(zone) == 2 else None
             if not host:
                 zone, host = self.select_lb.next(zone)
             ns = self.hosts[host].hypervisor_type.lower()
