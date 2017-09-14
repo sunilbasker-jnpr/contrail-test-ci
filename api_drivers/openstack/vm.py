@@ -1,5 +1,5 @@
 import copy
-from tcutils.util import retry
+from tcutils.util import retry, is_v6
 from common import vcenter_libs
 from tcutils.timeout import timeout, TimeoutError
 
@@ -13,18 +13,24 @@ try:
 
         def create_virtual_machine (self, **kwargs):
             assert kwargs['type'] == 'openstack', "Unsupport argument type"
-            args = kwargs
-            #args = copy.deepcopy(kwargs)
-            del args['type']
+
+            vm_args = kwargs.copy()
+            del vm_args['type']
             lst = []
-            for nic in args['networks']:
-                if nic.keys()[0] == 'port':
-                    lst.append({'port-id': nic.values()[0]})
-                else:
-                    lst.append({'net-id': nic.values()[0]})
-            args['nics'] = lst
-            del args['networks']
-            obj = self._nh.servers.create(**args)
+            for nic in vm_args['networks']:
+                nic_dict = {}
+                if 'fixed_ip' in nic.keys():
+                    af = 'v6' if is_v6(nic['fixed_ip']) else 'v4'
+                    nic_dict = {'%s-fixed-ip' % af: nic['fixed_ip']}
+                if 'port' in nic.keys():
+                    nic_dict['port-id'] =  nic['port']
+                if 'network' in nic.keys():
+                    nic_dict['net-id'] =  nic['network']
+                lst.append(nic_dict)
+
+            vm_args['nics'] = lst
+            del vm_args['networks']
+            obj = self._nh.servers.create(**vm_args)
             return obj.id
 
         def get_virtual_machine (self, uuid):

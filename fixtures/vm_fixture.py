@@ -14,10 +14,10 @@ class VMFixture_v2 (ContrailFixture):
 
     def __init__ (self, connections, uuid=None, params=None, fixs=None):
         super(VMFixture_v2, self).__init__(
-           uuid=uuid,
-           connections=connections,
-           params=params,
-           fixs=fixs)
+            connections,
+            uuid=uuid,
+            params=params,
+            fixs=fixs)
         self.api_s_inspects = connections.api_server_inspects
         self.api_s_inspect = connections.api_server_inspect
         self.agent_inspect = connections.agent_inspect
@@ -1452,57 +1452,91 @@ class VMFixture_v2 (ContrailFixture):
     # end _verify_in_opserver
 
 class VMFixture(VMFixture_v2):
-   ''' Fixture for backward compatiblity '''
-   #vn_fixtures arg need to be passed in place of vn_obj to use VMFixture
-   def __init__ (self, connections,
-                 **kwargs):
-       domain = connections.domain_name
-       prj = kwargs.get('project_name') or connections.project_name
-       prj_fqn = domain + ':' + prj
-       name = kwargs.get('vm_name')
-       self.inputs = connections.inputs
-       self.vn_fixtures = kwargs.get('vn_fixtures')
-       objs = {'fixtures': {}, 'args': {}, 'id-map': {}, 'fqn-map': {}, 'name-map': {}}
+    ''' Fixture for backward compatiblity '''
+    #vn_fixtures arg need to be passed in place of vn_obj to use VMFixture
+    def __init__ (self, connections,
+                  **kwargs):
+        domain = connections.domain_name
+        prj = kwargs.get('project_name') or connections.project_name
+        prj_fqn = domain + ':' + prj
+        name = kwargs.get('vm_name')
+        self.inputs = connections.inputs
+        self.vn_fixtures = kwargs.get('vn_fixtures')
+        objs = {'fixtures': {}, 'args': {}, 'id-map': {}, 'fqn-map': {}, 'name-map': {}}
 
-       self._add_to_objs(objs, self.vn_fixtures[0].name, self.vn_fixtures[0])
-       if name:
-           uuid = self._check_if_present(connections, name, [domain, prj])
-           if uuid:
-               super(VMFixture, self).__init__(connections=connections,
-                                               uuid=uuid)
-               return
-       else:
-           name = get_random_name(prj)
+        self._add_to_objs(objs, self.vn_fixtures[0].name, self.vn_fixtures[0])
+        if name:
+            uuid = self._check_if_present(connections, name, [domain, prj])
+            super(VMFixture, self).__init__(connections=connections,
+                                            uuid=uuid)
+        else:
+            name = get_random_name(prj)
 
-       self._construct_nova_params(name, prj_fqn, kwargs)
-       super(VMFixture, self).__init__(connections=connections,
-                                       params=self._params, fixs=objs)
+        self._construct_nova_params(name, prj_fqn, kwargs)
+        super(VMFixture, self).__init__(connections=connections,
+                                        params=self._params, fixs=objs)
 
-   def _check_if_present (self, conn, name, prj_fqn):
-       uuid = prj_fqn + [name]
-       obj = conn.get_orch_ctrl().get_api('vnc').get_virtual_network(uuid)
-       if not obj:
-           return None
-       return uuid
+    def _check_if_present (self, conn, name, prj_fqn):
+        uuid = prj_fqn + [name]
+        obj = conn.get_orch_ctrl().get_api('vnc').get_virtual_network(uuid)
+        if not obj:
+            return None
+        return uuid
 
-   def setUp (self):
-       super(VMFixture, self).setUp()
-       self.vnc_api = self._vnc._vnc # direct handle to vnc library
-       self._qh = self._ctrl.get_api('openstack').nova_handle
+    def setUp (self):
+        super(VMFixture, self).setUp()
+        self.vnc_api = self._vnc._vnc # direct handle to vnc library
+        self._qh = self._ctrl.get_api('openstack').nova_handle
 
-   def cleanUp (self):
-       super(VMFixture, self).cleanUp()
+    def cleanUp (self):
+        super(VMFixture, self).cleanUp()
 
-   def _construct_nova_params (self, name, prj_fqn, kwargs):
-       vn_fixtures = kwargs.get('vn_fixtures', None)
-       if not vn_fixtures:
-            return False
-       self._params = {
-           'type': 'OS::Nova::Server',
-           'name': name,
-           'image': kwargs.get('image', 'cirros'),
-           'flavor': kwargs.get('flavor', 'contrail_flavor_tiny'),
-           #<TBD>Need to revisit this to support multiple VNs
-           'networks': [{'network': vn_fixtures[0].uuid}]
-       }
+    def _construct_nova_params (self, name, prj_fqn, kwargs):
+        vn_fixtures = kwargs.get('vn_fixtures', None)
+        if not vn_fixtures:
+            raise Exception('VN fixture is mandatory parameter to launch '\
+                'the instance through VM fixture')
 
+        self._params = {
+            'type': 'OS::Nova::Server',
+            'name': name,
+            'image': kwargs.get('image', 'cirros'),
+            'flavor': kwargs.get('flavor', 'contrail_flavor_tiny'),
+            'availability_zone': kwargs.get('availability_zone'),
+        }
+
+        host = kwargs.get('node_name')
+        zone = kwargs.get('availability_zone')
+        fixed_ips = kwargs.get('fixed_ips')
+        vn_ids = kwargs.get('vn_ids')
+        port_ids = kwargs.get('port_ids')
+
+        if zone and host:
+            self._params['availability_zone'] = zone + ':' + host
+        elif host:
+            #Get zone for the host
+            zone = self.connections.orch_ctrl.get_zones(host=host)[0]
+            self._params['availability_zone'] = zone + ':' + host
+
+        nics_list = []
+        if fixed_ips:
+            if vn_ids:
+                nics_list = [{'network': x,
+                             'fixed_ip': y}
+                             for x, y in zip(vn_ids, fixed_ips)]
+            elif port_ids:
+                nics_list = [{'port': x,
+                             'fixed_ip': y}
+                             for x, y in zip(port_ids, fixed_ips)]
+            else:
+                nics_list = [{'network': x.uuid,
+                             'fixed_ip': y }
+                             for x, y in zip(vn_fixtures, fixed_ips)]
+        elif port_ids:
+            nics_list = [{'port': x} for x in port_ids]
+        elif vn_ids:
+            nics_list = [{'network': x} for x in vn_ids]
+        else:
+            nics_list = [{'network': vn_fixtures[0].uuid}]
+
+        self._params['networks'] = nics_list
