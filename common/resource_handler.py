@@ -5,41 +5,27 @@ from api_drivers.heat import parser
 from vn_fixture import VNFixture_v2
 from subnet_fixture import SubnetFixture
 from policy_fixture import PolicyFixture_v2
+from alarm_fixture import AlarmFixture_v2
 from vm_fixture import VMFixture_v2
 from ipam_fixture import IPAMFixture_v2
 from vdns_fixture_new import VdnsFixture_v2, VdnsRecordFixture_v2
 from qos_fixture_new import QosQueueFixture_v2, QosForwardingClassFixture_v2, QosConfigFixture_v2
 
-#from svc_template_fixture_new import SvcTemplateFixture_v2
-#from svc_instance_fixture_new import SvcInstanceFixture_v2
-#from port_tuple_fixture import PortTupleFixture
-#import vm_fix
-#from instance_ip_fixture import InstanceIpFixture
-#from bgp_router_fixture import BgpRouterFixture
-#from interface_route_table_fixture import InterfaceRouteTableFixture
-#from ipam_fixture import IPAMFixture
-#from lif_fixture import LogicalInterfaceFixture_v2
-#from floating_ip_pool_fixture import FloatingIpPoolFixture
-#from floating_ip_fixture import FloatingIpFixture
-#from alarm_fixture import AlarmFixture_v2
-
 # Map: heat resource type -> fixture
 _HEAT_2_FIXTURE = {
-   'OS::ContrailV2::VirtualNetwork': VNFixture_v2,
-   'OS::ContrailV2::NetworkPolicy': PolicyFixture_v2,
-   'OS::ContrailV2::NetworkIpam': IPAMFixture_v2,
-   'OS::ContrailV2::VirtualDns': VdnsFixture_v2,
-   'OS::ContrailV2::VirtualDnsRecord': VdnsRecordFixture_v2,
-   'OS::ContrailV2::QosQueue': QosQueueFixture_v2,
-   'OS::ContrailV2::ForwardingClass': QosForwardingClassFixture_v2,
-   'OS::ContrailV2::QosConfig': QosConfigFixture_v2,
-   #'OS::ContrailV2::ServiceTemplate': SvcTemplateFixture_v2,
-   #'OS::ContrailV2::ServiceInstance': SvcInstanceFixture_v2,
-   #'OS::ContrailV2::PortTuple': PortTupleFixture,
-   'OS::Neutron::Subnet': SubnetFixture,
-   'OS::Neutron::Net': VNFixture_v2,
-   'OS::Neutron::Policy': PolicyFixture_v2,
-   'OS::Nova::Server': VMFixture_v2  
+    'OS::ContrailV2::VirtualNetwork': VNFixture_v2,
+    'OS::ContrailV2::NetworkPolicy': PolicyFixture_v2,
+    'OS::ContrailV2::NetworkIpam': IPAMFixture_v2,
+    'OS::ContrailV2::VirtualDns': VdnsFixture_v2,
+    'OS::ContrailV2::VirtualDnsRecord': VdnsRecordFixture_v2,
+    'OS::ContrailV2::Alarm': AlarmFixture_v2,
+    'OS::Neutron::Subnet': SubnetFixture,
+    'OS::Neutron::Net': VNFixture_v2,
+    'OS::Neutron::Policy': PolicyFixture_v2,
+    'OS::Nova::Server': VMFixture_v2  
+    'OS::ContrailV2::QosQueue': QosQueueFixture_v2,
+    'OS::ContrailV2::ForwardingClass': QosForwardingClassFixture_v2,
+    'OS::ContrailV2::QosConfig': QosConfigFixture_v2,
 }
 
 def verify_on_setup (objs):
@@ -58,6 +44,18 @@ def _add_to_objs (objs, res_name, obj, args=None):
         objs['args'][res_name] = args
     if obj.fq_name_str:
         objs['fqn-map'][obj.fq_name_str] = obj
+
+def _get_resources_and_uuids (stack, tmpl):
+    ret = {}
+    for out in stack.outputs:
+        key = out['output_key']
+        res_id = out['output_value']
+        try:
+            res_name = tmpl['outputs'][key]['value']['get_attr'][0]
+        except KeyError:
+            res_name = tmpl['outputs'][key]['value']['get_resource']
+        ret[res_name] = res_id
+    return ret
 
 def _create_via_heat (test, tmpl, params):
 
@@ -80,7 +78,7 @@ def _create_via_heat (test, tmpl, params):
     assert wrap, "Unable to obtain Heat api-wrap"
 
     tmpl_first = copy.deepcopy(tmpl)
-    _, tbl = parser.build_dependency_tables(tmpl_first)
+    lvls, tbl = parser.build_dependency_tables(tmpl_first)
     refs = parser.report_fwd_refs(tbl, tmpl_first)
     tmpl_first, tmpl_to_update = parser.remove_fwd_refs(tmpl_first, refs)
     st = wrap.stack_create(get_random_name(), tmpl_first, params)
@@ -89,24 +87,26 @@ def _create_via_heat (test, tmpl, params):
             'fixtures': {}, 'id-map': {}, 'fqn-map': {}, 'args': {},
             'name-map': {}}
     test.addCleanup(_delete_via_heat, objs)
-    for out in st.outputs:
-        key = out['output_key']
-        res_id = out['output_value']
-        try:
-            res_name = tmpl_first['outputs'][key]['value']['get_attr'][0]
-        except KeyError:
-            res_name = tmpl_first['outputs'][key]['value']['get_resource']
-        res_type = _HEAT_2_FIXTURE[tmpl_first['resources'][res_name]['type']]
-        test.logger.debug('Reading %s - %s' % (res_name,
-            tmpl_first['resources'][res_name]['properties'].get('name', None)))
-        obj = test.useFixture(res_type(test.connections, uuid=res_id,
-                                       fixs=objs))
-        _add_to_objs(objs, res_name, obj)
+    uuids = _get_resources_and_uuids(st, tmpl_first)
+    for i in range(len(lvls)):
+        for res_name in lvls[i]:
+            res_tmpl = tmpl_first['resources'][res_name]
+            res_type = _HEAT_2_FIXTURE[res_tmpl['type']]
+            test.logger.debug('Reading %s - %s' % (res_name,
+                                res_tmpl['properties'].get('name', None)))
+            args = parser.parse_resource(res_tmpl, params, objs)
+            obj = test.useFixture(res_type(test.connections,
+                                           uuid=uuids[res_name],
+                                           fixs=objs, params=args))
+            _add_to_objs(objs, res_name, obj)
     if tmpl_to_update:
         parser.fix_fwd_refs(objs, tmpl_to_update, refs)
         wrap.stack_update(st, tmpl_to_update, params, {})
         for res_name in refs:
             test.logger.debug('Updating %s' % res_name)
+            args = parser.parse_resource(
+                        tmpl_to_update['resources'][res_name], params, objs)
+            objs['fixtures'][res_name].update_args(args)
             objs['fixtures'][res_name].update()
     return objs
 
@@ -129,33 +129,36 @@ def _update_via_heat (test, objs, tmpl, params):
     wrap = objs['heat_wrap']
     st = objs['stack']
     tmpl_first = copy.deepcopy(tmpl)
-    _, tbl = parser.build_dependency_tables(tmpl_first)
+    lvls, tbl = parser.build_dependency_tables(tmpl_first)
     refs = parser.report_fwd_refs(tbl, tmpl_first)
     tmpl_first, tmpl_to_update = parser.remove_fwd_refs(tmpl_first, refs)
     st = wrap.stack_update(st, tmpl_first, params, {})
-    for out in st.outputs:
-        key = out['output_key']
-        res_id = out['output_value']
-        try:
-            res_name = tmpl_first['outputs'][key]['value']['get_attr'][0]
-        except KeyError:
-            res_name = tmpl_first['outputs'][key]['value']['get_resource']
-        res_type = _HEAT_2_FIXTURE[tmpl_first['resources'][res_name]['type']]
-        if objs['fixtures'].get(res_name, None):
-            test.logger.debug('Updating %s' % res_name)
-            objs['fixtures'][res_name].update()
+    uuids = _get_resources_and_uuids(st, tmpl_first)
+    for i in range(len(lvls)):
+        for res_name in lvls[i]:
+            res_tmpl = tmpl_first['resources'][res_name]
+            res_type = _HEAT_2_FIXTURE[res_tmpl['type']]
+            args = parser.parse_resource(res_tmpl, params, objs)
+            if objs['fixtures'].get(res_name, None):
+                test.logger.debug('Updating %s' % res_name)
+                objs['fixtures'][res_name].update_args(args)
+                objs['fixtures'][res_name].update()
         else:
             test.logger.debug('Reading %s - %s' % (res_name,
                 tmpl_first['resources'][res_name]['properties'].get('name',
                                                                     None)))
-            obj = test.useFixture(res_type(test.connections, uuid=res_id,
-                                           fixs=objs))
+            obj = test.useFixture(res_type(test.connections,
+                                           uuid=uuids[res_name],
+                                           fixs=objs, params=args))
             _add_to_objs(objs, res_name, obj)
     if tmpl_to_update:
         parser.fix_fwd_refs(objs, tmpl_to_update, refs)
         wrap.stack_update(st, tmpl_to_update, params, {})
         for res_name in refs:
             test.logger.debug('Updating %s' % res_name)
+            args = parser.parse_resource(
+                        tmpl_to_update['resources'][res_name], params, objs)
+            objs['fixtures'][res_name].update_args(args)
             objs['fixtures'][res_name].update()
     return objs
 
