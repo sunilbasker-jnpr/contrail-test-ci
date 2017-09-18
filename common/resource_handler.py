@@ -9,6 +9,7 @@ from alarm_fixture import AlarmFixture_v2
 from vm_fixture import VMFixture_v2
 from ipam_fixture import IPAMFixture_v2
 from vdns_fixture_new import VdnsFixture_v2, VdnsRecordFixture_v2
+from qos_fixture_new import QosQueueFixture_v2, QosForwardingClassFixture_v2, QosConfigFixture_v2
 
 # Map: heat resource type -> fixture
 _HEAT_2_FIXTURE = {
@@ -22,6 +23,9 @@ _HEAT_2_FIXTURE = {
     'OS::Neutron::Net': VNFixture_v2,
     'OS::Neutron::Policy': PolicyFixture_v2,
     'OS::Nova::Server': VMFixture_v2  
+    'OS::ContrailV2::QosQueue': QosQueueFixture_v2,
+    'OS::ContrailV2::ForwardingClass': QosForwardingClassFixture_v2,
+    'OS::ContrailV2::QosConfig': QosConfigFixture_v2,
 }
 
 def verify_on_setup (objs):

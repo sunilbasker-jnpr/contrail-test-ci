@@ -5,7 +5,7 @@ import dpkt
 
 from common.neutron.base import BaseNeutronTest
 from compute_node_test import ComputeNodeFixture
-from qos_fixture import QosForwardingClassFixture, QosConfigFixture, QosQueueFixture
+from qos_fixture_new import QosForwardingClassFixture, QosConfigFixture, QosQueueFixture
 from collections import OrderedDict
 from vnc_api.vnc_api import ControlTrafficDscpType
 
