@@ -22,7 +22,7 @@ _HEAT_2_FIXTURE = {
     'OS::Neutron::Subnet': SubnetFixture,
     'OS::Neutron::Net': VNFixture_v2,
     'OS::Neutron::Policy': PolicyFixture_v2,
-    'OS::Nova::Server': VMFixture_v2  
+    'OS::Nova::Server': VMFixture_v2,  
     'OS::ContrailV2::QosQueue': QosQueueFixture_v2,
     'OS::ContrailV2::ForwardingClass': QosForwardingClassFixture_v2,
     'OS::ContrailV2::QosConfig': QosConfigFixture_v2,
