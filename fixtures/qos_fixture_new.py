@@ -1,8 +1,4 @@
 from vnc_api.vnc_api import QosQueue, ForwardingClass, QosConfig
-try:
-    from webui_test import *
-except ImportError:
-    pass
 
 from contrail_fixtures import ContrailFixture
 from tcutils.util import get_random_name, retry, compare_dict
@@ -54,7 +50,6 @@ class QosQueueFixture_v2(ContrailFixture):
         ret, obj = self._read_vnc_obj()
         if ret:
             self._vnc_obj = obj
-            self._populate_attr(self._vnc_obj)
         
     def _create (self):
         self.logger.info('Creating %s' % self)
@@ -76,15 +71,18 @@ class QosQueueFixture_v2(ContrailFixture):
                obj=self._obj, uuid=self.uuid, **self.args)
 
     def verify_on_setup(self):
-        self.assert_on_setup(*self.verify_qq_in_all_agents())
+        self.assert_on_setup(*self._verify_qq_in_all_agents())
     # end verify_on_setup
 
     def verify_on_cleanup(self):
-        self.assert_on_setup(*self.verify_qq_not_in_all_agents())
+        self.assert_on_setup(*self._verify_qq_not_in_all_agents())
     # end verify_on_cleanup
 
+    # TODO
+    # Verify routines on config node "_verify_qq_in_config"
+
     @retry(delay=2, tries=5)
-    def verify_qq_in_all_agents(self):
+    def _verify_qq_in_all_agents(self):
         agent_qos_queues= {}
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
@@ -103,15 +101,15 @@ class QosQueueFixture_v2(ContrailFixture):
             (result, mismatches) = compare_dict(agent_qq, agent_qq_reference)
             if not result:
                 msg = 'On Compute %s, mismatch found in qos queue entries, Unmatched items: %s' % (compute, mismatches)
-                self.logger.warn(msg)
-                return False, msg
+                self.logger.error(msg)
+                raise NameError(msg) 
         msg = 'Validated Qos Queue UUID %s in agents of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_qq_in_all_agents
+    # end _verify_qq_in_all_agents
 
     @retry(delay=2, tries=5)
-    def verify_qq_not_in_all_agents(self):
+    def _verify_qq_not_in_all_agents(self):
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
             agent_qos_queue = inspect_h.get_agent_qos_queue(self.uuid)
@@ -122,13 +120,8 @@ class QosQueueFixture_v2(ContrailFixture):
         msg = 'Validated Qos Queue UUID %s deleted in agents of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_qq_not_in_all_agents
+    # end _verify_qq_not_in_all_agents
 
-    def _populate_attr(self, queue_obj):
-        self.obj = queue_obj
-        self.queue_id = queue_obj.qos_queue_identifier
-        self.uuid = queue_obj.uuid
-    # end _populate_attr
 
 
 class QosForwardingClassFixture_v2(ContrailFixture):
@@ -142,13 +135,10 @@ class QosForwardingClassFixture_v2(ContrailFixture):
            params=params,
            fixs=fixs)
         '''
-        queue_uuid : UUID of QosQueue object
+        Fixture to create Forwarding class object
         '''
         self.agent_inspect = connections.agent_inspect
         
-        if self.inputs.verify_thru_gui():
-            self.webui = WebuiTest(self.connections, self.inputs)
-            self.kwargs = kwargs
     # end __init__
 
     def get_attr (self, lst):
@@ -183,7 +173,6 @@ class QosForwardingClassFixture_v2(ContrailFixture):
         ret, obj = self._read_vnc_obj()
         if ret:
             self._vnc_obj = obj
-            self._populate_attr(self._vnc_obj)
         
     def _create (self):
         self.logger.info('Creating %s' % self)
@@ -203,27 +192,22 @@ class QosForwardingClassFixture_v2(ContrailFixture):
         with self._api_ctx:
             self._ctrl.update_forwarding_class(
                obj=self._obj, uuid=self.uuid, **self.args)
-    
-    def _populate_attr(self, fc_obj):
-        self.obj = fc_obj
-        self.dscp = fc_obj.forwarding_class_dscp
-        self.dot1p = fc_obj.forwarding_class_vlan_priority
-        self.exp = fc_obj.forwarding_class_mpls_exp
-        self.fc_id = fc_obj.forwarding_class_id
-        self.uuid = fc_obj.uuid
 
     def verify_on_setup(self):
-        self.assert_on_setup(*self.verify_fc_in_all_agents())
-        self.assert_on_setup(*self.verify_fc_in_all_vrouters())
+        self.assert_on_setup(*self._verify_fc_in_all_agents())
+        self.assert_on_setup(*self._verify_fc_in_all_vrouters())
     # end verify_on_setup
 
     def verify_on_cleanup(self):
-        self.assert_on_setup(*self.verify_fc_not_in_all_agents())
-        self.assert_on_setup(*self.verify_fc_not_in_all_vrouters())
+        self.assert_on_setup(*self._verify_fc_not_in_all_agents())
+        self.assert_on_setup(*self._verify_fc_not_in_all_vrouters())
     # end verify_on_cleanup
 
+    # TODO
+    # Verify routines on config node "_verify_fc_in_config"
+    
     @retry(delay=2, tries=5)
-    def verify_fc_in_all_agents(self):
+    def _verify_fc_in_all_agents(self):
         agent_fcs = {}
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
@@ -244,15 +228,15 @@ class QosForwardingClassFixture_v2(ContrailFixture):
             if not result:
                 msg = 'On Compute %s, mismatch found in qos fc entries, Unmatched items: %s' %\
                          (compute, mismatches)
-                self.logger.warn(msg)
-                return False, msg
+                self.logger.error(msg)
+                raise NameError(msg)
         msg = 'Validated Qos FC UUID %s in agents of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_fc_in_all_agents
+    # end _verify_fc_in_all_agents
 
     @retry(delay=2, tries=5)
-    def verify_fc_not_in_all_agents(self):
+    def _verify_fc_not_in_all_agents(self):
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
             agent_fc = inspect_h.get_agent_forwarding_class(self.uuid)
@@ -263,11 +247,11 @@ class QosForwardingClassFixture_v2(ContrailFixture):
         msg = 'Validated Qos FC UUID %s deleted in agents of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_fc_not_in_all_agents
+    # end _verify_fc_not_in_all_agents
 
 
     @retry(delay=2, tries=5)
-    def verify_fc_in_all_vrouters(self):
+    def _verify_fc_in_all_vrouters(self):
         vrouter_fcs = {}
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
@@ -287,15 +271,15 @@ class QosForwardingClassFixture_v2(ContrailFixture):
             if not result:
                 msg = 'On Compute %s(vrouter), mismatch found in qos fc entries, Unmatched items: %s'\
                          % (compute, mismatches)
-                self.logger.warn(msg)
-                return False, msg
+                self.logger.error(msg)
+                raise NameError(msg)
         msg = 'Validated Qos FC UUID %s in vrouters of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_fc_in_all_vrouters
+    # end _verify_fc_in_all_vrouters
 
     @retry(delay=2, tries=5)
-    def verify_fc_not_in_all_vrouters(self):
+    def _verify_fc_not_in_all_vrouters(self):
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
             vrouter_fc = inspect_h.get_vrouter_forwarding_class(
@@ -307,15 +291,12 @@ class QosForwardingClassFixture_v2(ContrailFixture):
         msg = 'Validated Qos FC UUID %s s deleted in vrouters of all computes' % (self.uuid)
         self.logger.info('msg')
         return True, msg
-    # end verify_fc_not_in_all_vrouters
+    # end _verify_fc_not_in_all_vrouters
 
 class QosConfigFixture_v2(ContrailFixture):
 
-    ''' Fixture for QoSConfig
-    dscp_mapping , dot1p_mapping and exp_mapping is a
-    dict of code_points as key and ForwardingClass id as value
-
-    qos_config_type: One of vhost/fabric/project, Default is project
+    '''
+    Fixture for creating Qos Config object
     '''
     
     vnc_class = QosConfig
@@ -331,12 +312,7 @@ class QosConfigFixture_v2(ContrailFixture):
         queue_uuid : UUID of QosQueue object
         '''
         self.agent_inspect = connections.agent_inspect
-        self.vmi_uuid = kwargs.get('vmi_uuid', None)
-        self.vn_uuid = kwargs.get('vn_uuid', None)
         self.id = {}
-        if self.inputs.verify_thru_gui():
-            self.webui = WebuiTest(self.connections, self.inputs)
-            self.kwargs = kwargs
     # end __init__
 
     def get_attr (self, lst):
@@ -371,7 +347,6 @@ class QosConfigFixture_v2(ContrailFixture):
         ret, obj = self._read_vnc_obj()
         if ret:
             self._vnc_obj = obj
-            self._populate_attr(self._vnc_obj)
         
     def _create (self):
         self.logger.info('Creating %s' % self)
@@ -392,13 +367,6 @@ class QosConfigFixture_v2(ContrailFixture):
             self._ctrl.update_qos_config(
                obj=self._obj, uuid=self.uuid, **self.args)
 
-    def _populate_attr(self, qos_config_obj):
-        self.uuid = qos_config_obj.uuid
-        self.qos_config_type = qos_config_obj.get_qos_config_type()
-        self.dscp_entries = qos_config_obj.dscp_entries
-        self.dot1p_entries = qos_config_obj.vlan_priority_entries
-        self.mpls_exp_entries = qos_config_obj.mpls_exp_entries
-        self.default_fc_id = qos_config_obj.default_forwarding_class_id
 
     """
     def apply_to_vmi(self, vmi_uuid):
@@ -431,17 +399,20 @@ class QosConfigFixture_v2(ContrailFixture):
     """
 
     def verify_on_setup(self):
-        self.assert_on_setup(*self.verify_qos_config_in_all_agents())
-        self.assert_on_setup(*self.verify_qos_config_in_all_vrouters())
+        self.assert_on_setup(*self._verify_qos_config_in_all_agents())
+        self.assert_on_setup(*self._verify_qos_config_in_all_vrouters())
     # end verify_on_setup
 
     def verify_on_cleanup(self):
-        self.assert_on_setup(*self.verify_qos_config_not_in_all_agents())
-        self.assert_on_setup(*self.verify_qos_config_not_in_all_vrouters())
+        self.assert_on_setup(*self._verify_qos_config_not_in_all_agents())
+        self.assert_on_setup(*self._verify_qos_config_not_in_all_vrouters())
     # end verify_on_cleanup
 
+    # TODO
+    # Verify routines on config node "_verify_qos_config_in_config"
+    
     @retry(delay=2, tries=5)
-    def verify_qos_config_in_all_agents(self):
+    def _verify_qos_config_in_all_agents(self):
         agent_qcs = {}
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
@@ -460,15 +431,15 @@ class QosConfigFixture_v2(ContrailFixture):
             if not result:
                 msg = 'On Compute %s, mismatch found in qos config entries, Unmatched items: %s'\
                          % (compute, mismatches)
-                self.logger.warn(msg)
-                return False, msg
+                self.logger.error(msg)
+                raise NameError(msg)
         msg = 'Validated Qos Config UUID %s in agents of all computes'% (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_qos_config_in_all_agents
+    # end _verify_qos_config_in_all_agents
 
     @retry(delay=2, tries=5)
-    def verify_qos_config_in_all_vrouters(self):
+    def _verify_qos_config_in_all_vrouters(self):
         vrouter_qcs = {}
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
@@ -488,15 +459,15 @@ class QosConfigFixture_v2(ContrailFixture):
             if not result:
                 msg = 'On Compute %s(vrouter), mismatch in qos config entries, Mismatched items: %s' \
                         % (compute, mismatches)
-                self.logger.warn(msg)
-                return False, msg
+                self.logger.error(msg)
+                raise NameError(msg)
         msg = 'Validated Qos Config UUID %s in vrouter of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_qos_config_in_all_vrouters
+    # end _verify_qos_config_in_all_vrouters
 
     @retry(delay=2, tries=5)
-    def verify_qos_config_not_in_all_agents(self):
+    def _verify_qos_config_not_in_all_agents(self):
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
             agent_qc = inspect_h.get_agent_qos_config(self.uuid)
@@ -507,10 +478,10 @@ class QosConfigFixture_v2(ContrailFixture):
         msg = 'Validated Qos Config UUID %s is deleted in agents of all computes' % (self.uuid)
         self.logger.info(msg)
         return True
-    # end verify_qos_config_not_in_all_agents
+    # end _verify_qos_config_not_in_all_agents
 
     @retry(delay=2, tries=5)
-    def verify_qos_config_not_in_all_vrouters(self):
+    def _verify_qos_config_not_in_all_vrouters(self):
         for compute in self.inputs.compute_ips:
             inspect_h = self.agent_inspect[compute]
             vrouter_qc = inspect_h.get_vrouter_qos_config(self.id[compute])
@@ -521,7 +492,7 @@ class QosConfigFixture_v2(ContrailFixture):
         msg = 'Validated Qos Config UUID %s is deleted in  vrouter of all computes' % (self.uuid)
         self.logger.info(msg)
         return True, msg
-    # end verify_qos_config_not_in_all_vrouters
+    # end _verify_qos_config_not_in_all_vrouters
 
 class QosQueueFixture(QosQueueFixture_v2):
 
@@ -638,7 +609,7 @@ class QosForwardingClassFixture(QosForwardingClassFixture_v2):
 class QosConfigFixture(QosConfigFixture_v2):
 
     '''
-    Fixture for creating Forwarding class object
+    Fixture for creating QOS Config object
     '''
     
     def __init__ (self, connections,
